@@ -1,0 +1,13 @@
+# Paste into the "Configuration" parameter of a Bindplane *Custom* source (type: custom),
+# with Telemetry Type = Logs, on a configuration whose Collector Type is zip-log-collector.
+# Add a File Storage extension to the same configuration for restart-safe checkpoints; Bindplane
+# components can reference it, or set `storage:` to an extension ID defined in the collector config.
+zip_log:
+  include:
+    - /data/archives/**/*.zip
+  # entry_include: ["**/*.log"]
+  poll_interval: 5s
+  max_entry_uncompressed_bytes: 53687091200   # 50 GiB guard per entry (0 = unlimited)
+  max_compression_ratio: 0                    # set e.g. 200 to reject zip bombs
+  # multiline:
+  #   line_start_pattern: '^\d{4}-\d{2}-\d{2}'

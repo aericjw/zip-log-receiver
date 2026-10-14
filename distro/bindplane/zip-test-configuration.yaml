@@ -1,0 +1,24 @@
+# Test configuration: reads zips from a local directory and sends to an existing destination.
+# Adjust file_path and the destination name, then:
+#   bindplane apply -f zip-test-configuration.yaml
+# Assign an agent:  bindplane label agent <AGENT_ID> configuration=zip-test --overwrite
+apiVersion: bindplane.observiq.com/v1
+kind: Configuration
+metadata:
+  name: zip-test
+  labels:
+    platform: macos
+spec:
+  selector:
+    matchLabels:
+      configuration: zip-test
+  sources:
+    - type: zip_log
+      parameters:
+        - name: log_type
+          value: zip-archive
+        - name: file_path
+          value:
+            - /path/to/zips/*.zip
+  destinations:
+    - name: aeric-dev

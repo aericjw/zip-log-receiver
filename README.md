@@ -7,13 +7,28 @@ Each zip entry becomes log records. Progress is saved per entry, so a finished e
 ## What you need
 
 - Bindplane Enterprise (Bring Your Own Collector) and an org admin login
-- Go and the `builder` tool (OCB) v0.161.0: `go install go.opentelemetry.io/collector/cmd/builder@v0.161.0`
-- A GitHub repo where the built collector is published as releases
+- Only for local test builds: Go and the `builder` tool: `go install go.opentelemetry.io/collector/cmd/builder@v0.161.0`
+- A public GitHub repo where the collector is published as releases
 - The `bindplane` CLI, logged in to the customer's project
 
-## 1. Build the collector
+## 1. Publish the collector to GitHub
 
-The build starts from Bindplane's own component list, so every Bindplane source and destination works, then adds `zip_log`.
+Bindplane downloads the collector from GitHub releases, so the build runs in GitHub Actions.
+
+1. Put this folder in a GitHub repo. The repo must be **public**, because Bindplane reads the release without a login.
+2. Change the module path in `ziplogreceiver/go.mod` (and the imports) if your repo is not `github.com/aericjw/zip-log-receiver`.
+3. Set `BDOT_VERSION` and `OTEL_VERSION` at the top of `.github/workflows/release.yml`. `BDOT_VERSION` is a Bindplane collector release. `OTEL_VERSION` is the OpenTelemetry version that release uses (shown in its release notes). Use the latest release for a new customer.
+4. Push a tag:
+
+```
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+The workflow builds linux (amd64, arm64), windows (amd64) and macOS (amd64, arm64), packages the OpAMP supervisor, and attaches everything to a release. You can also start it by hand from the Actions tab, which builds without publishing.
+
+The workflow runs `distro/generate-manifest.sh --ci`. That script copies Bindplane's component list and adds `zip_log`, so every Bindplane source and destination works.
+
+To build on your own machine instead, for testing:
 
 ```
 cd distro
@@ -21,9 +36,7 @@ cd distro
 builder --config=builder.yaml
 ```
 
-By default the script uses `../ziplogreceiver`. Pass a different path as a second argument if the receiver lives elsewhere. The binary is `distro/build/zip-log-collector`. It takes about 5 minutes. The version argument is a Bindplane collector release. The collector and component versions in the manifest follow it, so use the latest release when you start a new customer.
-
-To publish to GitHub, run `builder.yaml` through Bindplane's `observiq/otel-distro-builder` action. It builds each platform, packages the OpAMP supervisor, and attaches everything to a release.
+The binary is `distro/build/zip-log-collector`. It takes about 5 minutes.
 
 ## 2. Register the collector type in Bindplane
 
@@ -99,7 +112,7 @@ Each record has `log.file.name` (the zip), `log.file.path`, `log.zip.entry`, and
 
 Tested on macOS (arm64) against Bindplane Cloud: build, supervisor connection, config rollout, 13,283 records from three zips arriving in Dynatrace with correct counts per entry, no re-reads after a config change, new zips picked up.
 
-Not tested: the GitHub release build and `bindplane install agent` path (the collector was started by hand with the supervisor), Linux and Windows, a crash in the middle of a zip, zip64, UTF-16 end to end, files over 1 GB.
+Not tested: the GitHub workflow itself (the manifest it uses was checked by running the builder from the repo root, but the Action has not run), the `bindplane install agent` path (the collector was started by hand with the supervisor), Linux and Windows, a crash in the middle of a zip, zip64, UTF-16 end to end, files over 1 GB.
 
 ## Code
 

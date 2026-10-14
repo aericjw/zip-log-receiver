@@ -1,0 +1,21 @@
+# Bindplane AgentType for the zip-log-collector BYOC distribution.
+# NOT APPLIED. Apply yourself against the intended Bindplane project:
+#   bindplane apply -f distro/agent-type.yaml
+#   bindplane sync agent-versions --agent-type zip-log-collector
+# metadata.name MUST equal dist.name in builder.yaml. Requires Bindplane Enterprise (BYOC) and org admin.
+apiVersion: bindplane.observiq.com/v1
+kind: AgentType
+metadata:
+  name: zip-log-collector
+spec:
+  # TODO: GitHub repo whose Releases hold the built artifacts (tar.gz/zip/deb/rpm per platform).
+  repositoryLink: https://github.com/aericjw/zip-log-receiver
+  platformArchSet:
+    - platform: linux
+      arch: amd64
+    - platform: linux
+      arch: arm64
+    - platform: windows
+      arch: amd64
+    - platform: darwin
+      arch: arm64

@@ -1,0 +1,138 @@
+# Native Bindplane source for the zip_log receiver. Apply once per Bindplane project:
+#   bindplane apply -f zip_log-source-type.yaml
+apiVersion: bindplane.observiq.com/v1
+kind: SourceType
+metadata:
+  name: zip_log
+  displayName: Zip Archive Logs
+  description: Collect logs from files inside zip archives (backfill / archived logs).
+  icon: /icons/sources/file.svg
+spec:
+  version: 0.1.0
+  supportedPlatforms: [macos, linux, windows]
+  parameters:
+    - name: file_path
+      label: Zip File Path(s)
+      description: Glob patterns (** supported) that match the zip files to read.
+      required: true
+      type: strings
+      default: []
+    - name: exclude_file_path
+      label: Exclude Zip File Path(s)
+      description: Glob patterns of zip files to skip.
+      type: strings
+      default: []
+    - name: entry_include
+      label: Entry Include Pattern(s)
+      description: Only read entries inside each zip whose name matches (e.g. "**/*.log"). Empty reads all entries.
+      type: strings
+      default: []
+    - name: entry_exclude
+      label: Entry Exclude Pattern(s)
+      description: Skip entries inside each zip whose name matches.
+      type: strings
+      default: []
+    - name: log_type
+      label: Log Type
+      description: A friendly name added to each log as the log_type attribute.
+      type: string
+      default: zip
+    - name: multiline_start_pattern
+      label: Multiline Start Pattern
+      description: Regex matching the first line of a record, for multiline logs. Empty = one record per line.
+      type: string
+      default: ""
+    - name: encoding
+      label: Encoding
+      type: enum
+      validValues: [nop, utf-8, utf-16le, utf-16be, ascii]
+      default: utf-8
+      advancedConfig: true
+    - name: poll_interval_seconds
+      label: Poll Interval (seconds)
+      description: How often to look for new zip files. Entries already ingested are never re-read.
+      type: int
+      default: 5
+      advancedConfig: true
+    - name: max_log_size
+      label: Max Log Size (bytes)
+      type: int
+      default: 1048576
+      advancedConfig: true
+    - name: max_entry_uncompressed_mib
+      label: Max Uncompressed Entry Size (MiB)
+      description: Reject entries larger than this when decompressed (zip-bomb guard). 0 = unlimited.
+      type: int
+      default: 0
+      advancedConfig: true
+    - name: max_compression_ratio
+      label: Max Compression Ratio
+      description: Reject entries compressed more than this ratio (zip-bomb guard). 0 = unlimited.
+      type: int
+      default: 0
+      advancedConfig: true
+    - name: enable_offset_storage
+      label: Enable Progress Storage
+      description: Save progress to disk so a collector restart does not re-ingest finished entries.
+      type: bool
+      default: true
+      advancedConfig: true
+    - name: offset_storage_dir
+      label: Progress Storage Directory
+      description: Relative paths resolve against the collector's installation directory.
+      type: string
+      default: storage
+      relevantIf:
+        - name: enable_offset_storage
+          operator: equals
+          value: true
+      advancedConfig: true
+  logs:
+    receivers: |
+      - zip_log:
+          include:
+            {{ range $fp := .file_path }}
+            - {{ $fp | quote }}
+            {{ end }}
+          {{ if .exclude_file_path }}
+          exclude:
+            {{ range $fp := .exclude_file_path }}
+            - {{ $fp | quote }}
+            {{ end }}
+          {{ end }}
+          {{ if .entry_include }}
+          entry_include:
+            {{ range $e := .entry_include }}
+            - {{ $e | quote }}
+            {{ end }}
+          {{ end }}
+          {{ if .entry_exclude }}
+          entry_exclude:
+            {{ range $e := .entry_exclude }}
+            - {{ $e | quote }}
+            {{ end }}
+          {{ end }}
+          {{ if .multiline_start_pattern }}
+          multiline:
+            line_start_pattern: {{ .multiline_start_pattern | quote }}
+          {{ end }}
+          encoding: {{ .encoding }}
+          poll_interval: {{ .poll_interval_seconds }}s
+          max_log_size: {{ .max_log_size }}
+          {{ if gt (int .max_entry_uncompressed_mib) 0 }}
+          max_entry_uncompressed_bytes: {{ mul (int .max_entry_uncompressed_mib) 1048576 }}
+          {{ end }}
+          max_compression_ratio: {{ .max_compression_ratio }}
+          {{ if .enable_offset_storage }}
+          storage: {{ bpComponentID "file_storage" }}
+          {{ end }}
+          {{ if .log_type }}
+          attributes:
+            log_type: {{ .log_type | quote }}
+          {{ end }}
+    extensions: |
+      {{ if .enable_offset_storage }}
+      - file_storage:
+          directory: {{ bpCollectorHomePath .offset_storage_dir }}
+          create_directory: true
+      {{ end }}

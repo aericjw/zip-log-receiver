@@ -1,0 +1,67 @@
+name: Build and release zip-log-collector
+
+# Push a tag like v0.1.0 to publish a release. Bindplane reads the release assets.
+# This repo must be public (or the release assets must be readable without a login).
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+env:
+  BDOT_VERSION: v1.109.0   # Bindplane collector release the component list comes from
+  OTEL_VERSION: 0.161.0    # must match the OTel version used by that BDOT release
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: linux, arch: amd64 }
+          - { os: linux, arch: arm64 }
+          - { os: windows, arch: amd64 }
+          - { os: darwin, arch: amd64 }
+          - { os: darwin, arch: arm64 }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate manifest
+        run: |
+          ./distro/generate-manifest.sh --ci "$BDOT_VERSION"
+          # Stamp the release version into the manifest (tag v0.1.0 -> 0.1.0).
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            sed -i "s/^  version: .*/  version: ${GITHUB_REF_NAME#v}/" manifest.yaml
+          fi
+          grep -n "^  version:" manifest.yaml
+
+      - uses: observiq/otel-distro-builder@v1.1.0
+        with:
+          manifest: ./manifest.yaml
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          ocb_version: ${{ env.OTEL_VERSION }}
+          supervisor_version: ${{ env.OTEL_VERSION }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.os }}-${{ matrix.arch }}
+          path: ${{ github.workspace }}/artifacts/*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to create the release
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: dist-*
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
