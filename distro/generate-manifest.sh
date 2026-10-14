@@ -3,7 +3,7 @@
 # compatible) + zip_log, minus what a third-party build cannot use (repo-internal modules, forked replaces).
 # Usage: ./generate-manifest.sh [--ci] [BDOT_VERSION] [RECEIVER_DIR]   e.g. ./generate-manifest.sh v1.109.0
 #   default: writes distro/builder.yaml, receiver referenced by absolute path (local builds)
-#   --ci:    writes ../manifest.yaml at the repo root, receiver referenced as ../ziplogreceiver (GitHub Action)
+#   --ci:    writes ../manifest.yaml at the repo root, receiver referenced as /github/workspace/ziplogreceiver, the checkout path inside the Action container
 set -euo pipefail
 CI_MODE=false
 if [ "${1:-}" = "--ci" ]; then CI_MODE=true; shift; fi
@@ -43,5 +43,5 @@ if "processor/snapshotprocessor" not in txt:
     txt=txt.replace("\nprocessors:\n","\nprocessors:\n  - gomod: github.com/observiq/bindplane-otel-contrib/processor/snapshotprocessor v1.15.0\n",1)
 txt=txt.rstrip("\n")+f"\n\nreplaces:\n  - {mod} => {receiver_dir}\n"
 print(txt)
-' "$($CI_MODE && echo ../ziplogreceiver || echo "$RECEIVER_DIR")" "$VERSION" > "$OUT"
+' "$($CI_MODE && echo "${CI_RECEIVER_PATH:-/github/workspace/ziplogreceiver}" || echo "$RECEIVER_DIR")" "$VERSION" > "$OUT"
 echo "wrote $OUT: $(grep -c 'gomod:' "$OUT") components"
